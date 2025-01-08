@@ -1,0 +1,13 @@
+@startuml
+actor User
+
+rectangle "Flask Server" {
+    (Fetch Volatility) --> (Call /api/volatility)
+}
+
+rectangle "React Application" {
+    User --> (Select Cryptocurrency)
+    (Select Cryptocurrency) --> (Fetch Volatility)
+}
+
+@enduml

@@ -1,0 +1,13 @@
+@startuml
+actor User
+
+rectangle "Flask Server" {
+    (Fetch Support and Resistance) --> (Call /api/support_resistance)
+}
+
+rectangle "React Application" {
+    User --> (Select Cryptocurrency)
+    (Select Cryptocurrency) --> (Fetch Support and Resistance)
+}
+
+@enduml

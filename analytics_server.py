@@ -76,7 +76,7 @@ def price_trends():
         return jsonify(df[['timestamp', 'close', 'moving_average']].to_dict(orient='records'))
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-    
+ 
 @app.route('/api/volatility', methods=['GET'])
 def volatility():
     coin_id = request.args.get('coin_id')
