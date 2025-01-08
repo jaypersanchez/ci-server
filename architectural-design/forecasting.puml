@@ -1,0 +1,13 @@
+@startuml
+actor User
+
+rectangle "Flask Server" {
+    (Fetch Forecast) --> (Call /api/forecast)
+}
+
+rectangle "React Application" {
+    User --> (Request Forecast)
+    (Request Forecast) --> (Fetch Forecast)
+}
+
+@enduml
