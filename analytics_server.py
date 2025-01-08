@@ -6,22 +6,56 @@ from sqlalchemy import create_engine
 from dotenv import load_dotenv  # Import dotenv
 from datetime import datetime, timedelta
 from flask_cors import CORS
-
+import openai
 # Load environment variables from .env file
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)
+# Enable CORS with explicit configuration
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Database connection using environment variables
 DBNAME = os.getenv('dbname')  # Updated variable name
 POSTGRES_USER = os.getenv('postgres_user')  # Updated variable name
 POSTGRES_PASSWORD = os.getenv('postgres_password')  # Updated variable name
 POSTGRES_HOST = os.getenv('postgres_host')  # Updated variable name
+OPENAI_API_KEY = os.getenv('openai_api_key')  # Updated variable name
 
 # Construct the database URI
 DATABASE_URI = f'postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}/{DBNAME}'
 engine = create_engine(DATABASE_URI)
+
+# Set your OpenAI API key
+openai.api_key = OPENAI_API_KEY
+
+
+@app.route('/api/analytics', methods=['POST'])
+def analytics():
+    data = request.json
+    print('Data received at /api/analytics:', data)
+
+    price_trends = data.get('priceTrends')
+    volatility = data.get('volatility')
+    support = data.get('support')
+    resistance = data.get('resistance')
+
+    prompt = f"""
+    Given the following data:
+    Price Trends: {price_trends}
+    Volatility: {volatility}
+    Support Level: {support}
+    Resistance Level: {resistance}
+    
+    Provide an analytical insight that can help investors make informed decisions. Provide advise if this is risky, moderately risky or safe.
+    """
+
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    insights = response['choices'][0]['message']['content']
+    return jsonify({'insights': insights})
 
 @app.route('/api/price_trends', methods=['GET'])
 def price_trends():
@@ -60,6 +94,7 @@ def performance_comparison():
         results[coin_id] = returns
     return jsonify(results)
 
+## Support and Resistance data for an entire year
 @app.route('/api/support_resistance', methods=['GET'])
 def support_resistance():
     coin_id = request.args.get('coin_id')
@@ -68,6 +103,7 @@ def support_resistance():
     resistance = df['high'].max()
     return jsonify({'support': support, 'resistance': resistance})
 
+## Support and Resistance data for a specific timeframe
 @app.route('/api/support_resistance_by_timeframe', methods=['GET'])
 def support_resistance_by_timeframe():
     coin_id = request.args.get('coin_id')
