@@ -7,6 +7,7 @@ from dotenv import load_dotenv  # Import dotenv
 from datetime import datetime, timedelta
 from flask_cors import CORS
 import openai
+from utils import calculate_lstm_predictions  # Import the function
 # Load environment variables from .env file
 load_dotenv()
 
@@ -61,6 +62,7 @@ def analytics():
 def price_trends():
     try:
         coin_id = request.args.get('coin_id')
+        predict = request.args.get('predict', 'false').lower() == 'true'
         df = pd.read_sql(f"SELECT * FROM crypto_data WHERE coin_id = '{coin_id}'", engine)
 
         if df.empty:
@@ -73,7 +75,17 @@ def price_trends():
         df['moving_average'] = df['moving_average'].replace([np.nan, np.inf, -np.inf], None)
 
         # Convert DataFrame to JSON
-        return jsonify(df[['timestamp', 'close', 'moving_average']].to_dict(orient='records'))
+        # Prepare the base response
+        response = {
+            'historical_data': df[['timestamp', 'close', 'moving_average']].to_dict(orient='records')
+        }
+        # If predict=true, calculate predictions
+        if predict:
+            predictions = calculate_lstm_predictions(df['close'])
+            print(f"Predictions: {predictions}")  # Debug log
+            response['predictions'] = predictions
+        print(f"Final response: {response}")
+        return jsonify(response)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
  
