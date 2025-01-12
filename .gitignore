@@ -1,2 +1,3 @@
 .env
 venv
+lstm_model.h5
