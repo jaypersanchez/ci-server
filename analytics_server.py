@@ -82,9 +82,9 @@ def price_trends():
         # If predict=true, calculate predictions
         if predict:
             predictions = calculate_lstm_predictions(df['close'])
-            print(f"Predictions: {predictions}")  # Debug log
+            #print(f"Predictions: {predictions}")  # Debug log
             response['predictions'] = predictions
-        print(f"Final response: {response}")
+        #print(f"Final response: {response}")
         return jsonify(response)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
