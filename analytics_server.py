@@ -47,7 +47,7 @@ def analytics():
     Support Level: {support}
     Resistance Level: {resistance}
     
-    Provide an analytical insight that can help investors make informed decisions. Provide advise if this is risky, moderately risky or safe.
+    Provide an analytical insight that can help investors make informed decisions. Provide advice if this is risky, moderately risky, or safe.
     """
 
     response = openai.ChatCompletion.create(
@@ -58,15 +58,41 @@ def analytics():
     insights = response['choices'][0]['message']['content']
     return jsonify({'insights': insights})
 
+
 @app.route('/api/price_trends', methods=['GET'])
 def price_trends():
     try:
         coin_id = request.args.get('coin_id')
+        timeframe = request.args.get('timeframe')  # Accept 'hour', '4hours', 'day', 'week', or 'month'
         predict = request.args.get('predict', 'false').lower() == 'true'
-        df = pd.read_sql(f"SELECT * FROM crypto_data WHERE coin_id = '{coin_id}'", engine)
+
+        # Validate timeframe input
+        if timeframe not in ['hour', '4hours', 'day', 'week', 'month']:
+            return jsonify({'error': 'Invalid timeframe. Use "hour", "4hours", "day", "week", or "month".'}), 400
+
+        # Define the start date based on the timeframe
+        now = datetime.now()
+        if timeframe == 'hour':
+            start_date = now - timedelta(hours=1)
+        elif timeframe == '4hours':
+            start_date = now - timedelta(hours=4)
+        elif timeframe == 'day':
+            start_date = now - timedelta(days=1)
+        elif timeframe == 'week':
+            start_date = now - timedelta(weeks=1)
+        elif timeframe == 'month':
+            start_date = now - timedelta(days=30)
+
+        # Query the database for the specified timeframe
+        df = pd.read_sql(f"""
+            SELECT * FROM crypto_data
+            WHERE coin_id = '{coin_id}'
+            AND timestamp >= '{start_date.strftime('%Y-%m-%d %H:%M:%S')}'
+            ORDER BY timestamp ASC
+        """, engine)
 
         if df.empty:
-            return jsonify({'error': f'No data found for coin_id: {coin_id}'}), 404
+            return jsonify({'error': f'No data found for coin_id: {coin_id} and timeframe: {timeframe}'}), 404
 
         # Calculate the moving average
         df['moving_average'] = df['close'].rolling(window=30).mean()
@@ -74,83 +100,97 @@ def price_trends():
         # Explicitly replace NaN and Inf values
         df['moving_average'] = df['moving_average'].replace([np.nan, np.inf, -np.inf], None)
 
-        # Convert DataFrame to JSON
-        # Prepare the base response
+        # Prepare the response
         response = {
             'historical_data': df[['timestamp', 'close', 'moving_average']].to_dict(orient='records')
         }
+
         # If predict=true, calculate predictions
         if predict:
             predictions = calculate_lstm_predictions(df['close'])
-            #print(f"Predictions: {predictions}")  # Debug log
             response['predictions'] = predictions
-        #print(f"Final response: {response}")
+
         return jsonify(response)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
- 
+
+
 @app.route('/api/volatility', methods=['GET'])
 def volatility():
-    coin_id = request.args.get('coin_id')
-    df = pd.read_sql(f"SELECT * FROM crypto_data WHERE coin_id = '{coin_id}'", engine)
-    volatility = np.std(df['close'])
-    return jsonify({'volatility': volatility})
+    try:
+        coin_id = request.args.get('coin_id')
+        timeframe = request.args.get('timeframe')  # Accept 'hour', '4hours', 'day', 'week', or 'month'
 
-@app.route('/api/performance_comparison', methods=['GET'])
-def performance_comparison():
-    coin_ids = request.args.getlist('coin_ids')  # Expecting a list of coin IDs
-    results = {}
-    for coin_id in coin_ids:
-        df = pd.read_sql(f"SELECT * FROM crypto_data WHERE coin_id = '{coin_id}'", engine)
-        returns = df['close'].pct_change().sum()  # Total returns
-        results[coin_id] = returns
-    return jsonify(results)
+        if timeframe not in ['hour', '4hours', 'day', 'week', 'month']:
+            return jsonify({'error': 'Invalid timeframe. Use "hour", "4hours", "day", "week", or "month".'}), 400
 
-## Support and Resistance data for an entire year
+        # Define the start date based on the timeframe
+        now = datetime.now()
+        if timeframe == 'hour':
+            start_date = now - timedelta(hours=1)
+        elif timeframe == '4hours':
+            start_date = now - timedelta(hours=4)
+        elif timeframe == 'day':
+            start_date = now - timedelta(days=1)
+        elif timeframe == 'week':
+            start_date = now - timedelta(weeks=1)
+        elif timeframe == 'month':
+            start_date = now - timedelta(days=30)
+
+        # Query the database for the specified timeframe
+        df = pd.read_sql(f"""
+            SELECT * FROM crypto_data
+            WHERE coin_id = '{coin_id}'
+            AND timestamp >= '{start_date.strftime('%Y-%m-%d %H:%M:%S')}'
+        """, engine)
+
+        if df.empty:
+            return jsonify({'error': f'No data found for coin_id: {coin_id} and timeframe: {timeframe}'}), 404
+
+        volatility = np.std(df['close'])
+        return jsonify({'volatility': volatility})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/support_resistance', methods=['GET'])
 def support_resistance():
-    coin_id = request.args.get('coin_id')
-    df = pd.read_sql(f"SELECT * FROM crypto_data WHERE coin_id = '{coin_id}'", engine)
-    support = df['low'].min()
-    resistance = df['high'].max()
-    return jsonify({'support': support, 'resistance': resistance})
+    try:
+        coin_id = request.args.get('coin_id')
+        timeframe = request.args.get('timeframe')  # Accept 'hour', '4hours', 'day', 'week', or 'month'
 
-## Support and Resistance data for a specific timeframe
-@app.route('/api/support_resistance_by_timeframe', methods=['GET'])
-def support_resistance_by_timeframe():
-    coin_id = request.args.get('coin_id')
-    timeframe = request.args.get('timeframe')  # Accepts 'day', 'week', or 'month'
-    
-    if timeframe not in ['day', 'week', 'month']:
-        return jsonify({'error': 'Invalid timeframe. Use "day", "week", or "month".'}), 400
+        if timeframe not in ['hour', '4hours', 'day', 'week', 'month']:
+            return jsonify({'error': 'Invalid timeframe. Use "hour", "4hours", "day", "week", or "month".'}), 400
 
-    # Calculate the start date based on the timeframe
-    if timeframe == 'day':
-        start_date = datetime.now() - timedelta(days=1)
-    elif timeframe == 'week':
-        start_date = datetime.now() - timedelta(weeks=1)
-    elif timeframe == 'month':
-        start_date = datetime.now() - timedelta(days=30)
+        # Define the start date based on the timeframe
+        now = datetime.now()
+        if timeframe == 'hour':
+            start_date = now - timedelta(hours=1)
+        elif timeframe == '4hours':
+            start_date = now - timedelta(hours=4)
+        elif timeframe == 'day':
+            start_date = now - timedelta(days=1)
+        elif timeframe == 'week':
+            start_date = now - timedelta(weeks=1)
+        elif timeframe == 'month':
+            start_date = now - timedelta(days=30)
 
-    # Query the database for the specified timeframe
-    df = pd.read_sql(f"""
-        SELECT * FROM crypto_data 
-        WHERE coin_id = '{coin_id}' 
-        AND timestamp >= '{start_date.strftime('%Y-%m-%d')}'
-    """, engine)
+        # Query the database for the specified timeframe
+        df = pd.read_sql(f"""
+            SELECT * FROM crypto_data
+            WHERE coin_id = '{coin_id}'
+            AND timestamp >= '{start_date.strftime('%Y-%m-%d %H:%M:%S')}'
+        """, engine)
 
-    if df.empty:
-        return jsonify({'error': 'No data available for the specified timeframe.'}), 404
+        if df.empty:
+            return jsonify({'error': f'No data found for coin_id: {coin_id} and timeframe: {timeframe}'}), 404
 
-    support = df['low'].min()
-    resistance = df['high'].max()
-    return jsonify({'support': support, 'resistance': resistance})
+        support = df['low'].min()
+        resistance = df['high'].max()
+        return jsonify({'support': support, 'resistance': resistance})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-
-@app.route('/api/forecast', methods=['GET'])
-def forecast():
-    # Placeholder for forecasting logic
-    return jsonify({'message': 'Forecasting endpoint not implemented yet.'})
 
 if __name__ == '__main__':
     app.run(debug=True)
